@@ -6,3 +6,8 @@ venv/
 .streamlit/secrets.toml
 reports/*.pdf
 .DS_Store
+data/app.db
+data/skill_dictionary_suggestions.csv
+backend/data/
+backend/*.db
+.pytest_cache/
