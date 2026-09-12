@@ -1,0 +1,8 @@
+streamlit>=1.32
+pypdf>=4.0
+python-docx>=1.1
+pandas>=2.0
+numpy>=1.26
+scikit-learn>=1.4
+plotly>=5.20
+reportlab>=4.1

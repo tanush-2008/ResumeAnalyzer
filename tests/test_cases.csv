@@ -1,0 +1,4 @@
+test_resume,expected_top_role,actual_top_role,comments
+Resume A (data_analyst_sample),Data Analyst,Data Analyst,Match score 68.1%. Pass.
+Resume B (ml_engineer_sample),Machine Learning Engineer,Machine Learning Engineer,Match score 43.3% - lower because Docker/MLflow missing. Pass.
+Resume C (nlp_engineer_sample),NLP Engineer,NLP Engineer,Match score 72.3%. Pass.
