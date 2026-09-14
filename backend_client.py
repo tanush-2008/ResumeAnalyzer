@@ -95,6 +95,20 @@ def list_reports(token: str) -> list[dict]:
         return []
 
 
+def delete_report(token: str, report_id: int) -> tuple[bool, str]:
+    try:
+        r = requests.delete(
+            f"{BACKEND_URL}/reports/{report_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=_TIMEOUT,
+        )
+        if r.status_code == 204:
+            return True, "Report deleted."
+        return False, "Could not delete report."
+    except requests.RequestException as exc:
+        return False, f"Backend unreachable: {exc}"
+
+
 def get_report_pdf(token: str, report_id: int) -> bytes | None:
     try:
         r = requests.get(

@@ -12,6 +12,17 @@ and user accounts with saved reports.
 > nationality, photographs, marital status, or disability. See
 > [Responsible AI Rules](#responsible-ai-rules) below.
 
+## Design System
+
+The dashboard uses a custom design system (`styles.py` + `ui_components.py`)
+instead of default Streamlit styling: a violet/teal brand palette, Plus
+Jakarta Sans/Inter typography with Material Symbols icons, a gradient hero
+banner, category-colored skill badges, a Plotly gauge for the headline
+score, medal-style rank cards for recommended roles, and a connected
+timeline for the learning roadmap. The downloadable PDF report
+(`report_generator.py`) mirrors the same palette and score-tier coloring.
+Theme tokens (primary color, background) also live in `.streamlit/config.toml`.
+
 ## Features
 
 ### Core (beginner approach from the project brief)
@@ -50,10 +61,10 @@ and user accounts with saved reports.
   `data/skill_dictionary_suggestions.csv` for human review before being
   promoted into the live dictionary.
 - **Optional FastAPI backend** with user registration/login (JWT) and
-  **saved analysis reports**, backed by SQLite or PostgreSQL. The
-  dashboard detects whether the backend is reachable and enables/disables
-  these features automatically - the core analysis works standalone either
-  way.
+  **saved analysis reports** (list, fetch, delete), backed by SQLite or
+  PostgreSQL. The dashboard detects whether the backend is reachable and
+  enables/disables these features automatically - the core analysis works
+  standalone either way.
 - **Docker / docker-compose** deployment for both services.
 
 ## Architecture / Workflow
@@ -84,7 +95,10 @@ flowchart LR
 
 ```
 ai_resume_analyzer/
+|-- .github/workflows/tests.yml  # CI: runs the full test suite on push/PR
 |-- app.py                    # Streamlit dashboard (entry point)
+|-- styles.py                 # Design tokens (colors, CSS) - the design system
+|-- ui_components.py          # Reusable render helpers (badges, gauge, cards, timeline)
 |-- resume_parser.py          # PDF/DOCX text extraction + validation
 |-- text_cleaner.py           # Text cleaning & normalization
 |-- skill_extractor.py        # Skill dictionary matching (regex + spaCy)
@@ -93,10 +107,12 @@ ai_resume_analyzer/
 |-- roadmap_generator.py      # Rule-based learning roadmap
 |-- llm_feedback.py           # LLM / rule-based resume feedback (optional)
 |-- skill_feedback.py         # Skill-dictionary suggestion queue (optional)
-|-- report_generator.py       # Downloadable PDF report builder
+|-- report_generator.py       # Downloadable PDF report builder (brand-styled)
 |-- backend_client.py         # Streamlit <-> FastAPI backend client
+|-- .streamlit/
+|   `-- config.toml           # Streamlit theme tokens
 |-- backend/                  # Optional FastAPI backend
-|   |-- main.py               # Routes: auth, saved reports
+|   |-- main.py               # Routes: auth, saved reports (list/get/delete)
 |   |-- database.py           # SQLAlchemy engine/session
 |   |-- models.py             # User, SavedReport ORM models
 |   |-- schemas.py            # Pydantic request/response schemas
@@ -129,6 +145,8 @@ ai_resume_analyzer/
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 pip install -r requirements.txt
+pip install -r backend/requirements.txt   # only needed to run the optional
+                                           # backend or the full test suite
 python -m spacy download en_core_web_sm
 ```
 
@@ -173,6 +191,13 @@ docker compose up --build
 
 This starts both the FastAPI backend (port 8000) and the Streamlit
 dashboard (port 8501), wired together automatically.
+
+### Enabling the skill-dictionary admin panel
+
+Set `ADMIN_TOKEN` in `.env` to any secret string, then restart the
+Streamlit app. A new "Admin: Skill Dictionary Review" panel appears in the
+sidebar - enter the same token there to review, approve, or dismiss
+user-flagged skills.
 
 ## Running Tests
 
@@ -253,7 +278,37 @@ validate the pipeline end-to-end (see `tests/test_cases.csv`):
 | Optional backend | FastAPI, SQLAlchemy, SQLite/PostgreSQL, JWT (python-jose), passlib |
 | Optional AI feedback | Groq / OpenAI / Gemini / local (OpenAI-compatible API) |
 | Deployment | Docker, docker-compose |
+| CI | GitHub Actions (`.github/workflows/tests.yml`) |
 | Version control | Git & GitHub |
+
+## Production Hardening
+
+Improvements aimed at real, repeated daily use rather than a one-off demo -
+all still within the brief's Streamlit-dashboard shape:
+
+- **Pipeline caching** (`app.py`): text extraction, skill extraction, and
+  role ranking are each cached by their actual inputs (`st.cache_data`), so
+  unrelated interactions elsewhere on the page (opening an expander,
+  clicking a button) no longer re-parse the resume or recompute embeddings
+  from scratch on every rerun.
+- **Prompt-injection guarding** (`llm_feedback.py`): resume text is
+  untrusted input that gets embedded in an LLM prompt. It's sanitized for
+  common injection phrases ("ignore previous instructions", etc.) and
+  fenced behind explicit delimiters before being sent to the model.
+- **Fail-fast secret checks** (`backend/auth.py`): the backend refuses to
+  start with `APP_ENV=production` if `JWT_SECRET_KEY` is left at its
+  insecure default, instead of silently signing tokens with a public value.
+- **Rate limiting** (`backend/main.py`): `/auth/login` and `/auth/register`
+  are rate-limited (slowapi) to blunt brute-force/credential-stuffing
+  attempts.
+- **Structured request logging** on the backend for basic observability.
+- **CI on every push** (`.github/workflows/tests.yml`): the full test suite
+  (root + backend) runs on GitHub Actions for every push/PR.
+- **In-app skill-dictionary curation**: the sidebar's "Admin: Skill
+  Dictionary Review" panel (gated by `ADMIN_TOKEN`) lets a curator
+  approve/dismiss user-flagged skills directly, instead of hand-editing
+  `data/skill_dictionary_suggestions.csv` - this is what actually closes
+  the feedback loop for daily use.
 
 ## Limitations
 

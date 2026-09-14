@@ -27,6 +27,21 @@ def client(tmp_path, monkeypatch):
     return TestClient(main.app)
 
 
+def test_auth_refuses_default_secret_in_production(monkeypatch):
+    import importlib
+
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("APP_ENV", "production")
+    sys.modules.pop("auth", None)
+    with pytest.raises(RuntimeError, match="Refusing to start"):
+        importlib.import_module("auth")
+
+    # Re-import cleanly (dev env) so later tests get a working auth module.
+    sys.modules.pop("auth", None)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    importlib.import_module("auth")
+
+
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
@@ -74,3 +89,61 @@ def test_reports_require_authentication(client):
 
     r = client.get("/reports", headers={"Authorization": "Bearer not-a-real-token"})
     assert r.status_code == 401
+
+
+def test_root_and_get_single_report(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "service" in r.json()
+
+    client.post("/auth/register", json={"email": "b@example.com", "password": "password123"})
+    token = client.post(
+        "/auth/login", json={"email": "b@example.com", "password": "password123"}
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/reports",
+        json={"target_role": "AI Engineer", "match_score": 55.0, "matched_skills": ["python"]},
+        headers=headers,
+    ).json()
+
+    r = client.get(f"/reports/{created['id']}", headers=headers)
+    assert r.status_code == 200
+    assert r.json()["target_role"] == "AI Engineer"
+
+    r = client.get("/reports/99999", headers=headers)
+    assert r.status_code == 404
+
+
+def test_login_is_rate_limited(client):
+    client.post("/auth/register", json={"email": "d@example.com", "password": "password123"})
+    responses = [
+        client.post("/auth/login", json={"email": "d@example.com", "password": "wrong"})
+        for _ in range(15)
+    ]
+    statuses = [r.status_code for r in responses]
+    assert 429 in statuses, "expected the login endpoint to start rate-limiting repeated attempts"
+
+
+def test_delete_report(client):
+    client.post("/auth/register", json={"email": "c@example.com", "password": "password123"})
+    token = client.post(
+        "/auth/login", json={"email": "c@example.com", "password": "password123"}
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        "/reports",
+        json={"target_role": "Data Scientist", "match_score": 60.0},
+        headers=headers,
+    ).json()
+
+    r = client.delete(f"/reports/{created['id']}", headers=headers)
+    assert r.status_code == 204
+
+    r = client.get(f"/reports/{created['id']}", headers=headers)
+    assert r.status_code == 404
+
+    r = client.delete("/reports/99999", headers=headers)
+    assert r.status_code == 404

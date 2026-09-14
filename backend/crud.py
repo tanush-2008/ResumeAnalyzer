@@ -54,6 +54,11 @@ def get_report(db: Session, owner_id: int, report_id: int) -> models.SavedReport
     )
 
 
+def delete_report(db: Session, report: models.SavedReport) -> None:
+    db.delete(report)
+    db.commit()
+
+
 def report_to_out(report: models.SavedReport) -> schemas.SavedReportOut:
     return schemas.SavedReportOut(
         id=report.id,
