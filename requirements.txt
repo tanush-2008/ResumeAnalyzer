@@ -11,5 +11,10 @@ python-dotenv>=1.0
 pytest>=8.0
 
 # Advanced/optional features
-spacy>=3.7
+spacy>=3.8,<3.9
 sentence-transformers>=2.7
+# Streamlit Cloud only runs `pip install -r requirements.txt` - it can't run
+# `python -m spacy download`, so the model is installed as a direct wheel.
+# Version pinned to match the spacy version above (spaCy models must match
+# the spaCy minor version they were built for).
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
